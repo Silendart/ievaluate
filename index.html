@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IEvaluate — Analyseur d'indicateurs ACM</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:        #1a1a2e;
+    --ink-soft:   #4a4a6a;
+    --paper:      #f7f5f0;
+    --paper-warm: #ede9e0;
+    --accent:     #5c4ecf;
+    --accent-dim: #ede9fb;
+    --green:      #2d7d5a;
+    --green-dim:  #e0f2ea;
+    --orange:     #c75b21;
+    --orange-dim: #fdeee5;
+    --red:        #b5303a;
+    --red-dim:    #fce8e9;
+    --border:     #d8d3c8;
+    --shadow:     0 2px 12px rgba(26,26,46,.08);
+    --radius:     12px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 0 0 80px;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 28px 24px 24px;
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center; gap: 14px;
+  }
+  header svg { flex-shrink: 0; }
+  header h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.6rem; font-weight: 400; letter-spacing: -.02em;
+  }
+  header p { font-size: .8rem; color: #a0a0c0; margin-top: 2px; }
+
+  /* ── Main layout ── */
+  main { max-width: 680px; margin: 0 auto; padding: 28px 20px; }
+
+  /* ── Section titles ── */
+  .section-label {
+    font-size: .7rem; font-weight: 600; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--ink-soft);
+    margin-bottom: 10px;
+  }
+
+  /* ── Card ── */
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+  }
+
+  /* ── Input zone ── */
+  textarea {
+    width: 100%; min-height: 130px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .95rem; line-height: 1.6;
+    color: var(--ink); background: var(--paper);
+    resize: vertical; transition: border-color .2s;
+    outline: none;
+  }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: #aaa; }
+
+  .input-hint {
+    font-size: .78rem; color: var(--ink-soft);
+    margin-top: 8px; line-height: 1.5;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 10px 18px; border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .88rem; font-weight: 500;
+    cursor: pointer; border: none; transition: all .15s;
+  }
+  .btn-primary {
+    background: var(--accent); color: #fff;
+    width: 100%; justify-content: center;
+    padding: 13px; font-size: .95rem; margin-top: 12px;
+  }
+  .btn-primary:hover { background: #4a3db8; transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { background: #b0b0c8; cursor: not-allowed; transform: none; }
+
+  .btn-ghost {
+    background: transparent; color: var(--accent);
+    border: 1.5px solid var(--accent);
+  }
+  .btn-ghost:hover { background: var(--accent-dim); }
+
+  .btn-outline {
+    background: transparent; color: var(--ink-soft);
+    border: 1.5px solid var(--border);
+  }
+  .btn-outline:hover { border-color: var(--ink-soft); color: var(--ink); }
+
+  /* ── Feedback badge ── */
+  .feedback-badge {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 14px 16px; border-radius: 10px;
+    margin-bottom: 16px; font-weight: 500; font-size: .95rem;
+  }
+  .feedback-badge.ok    { background: var(--green-dim);  color: var(--green); }
+  .feedback-badge.warn  { background: var(--orange-dim); color: var(--orange); }
+  .feedback-badge.bad   { background: var(--red-dim);    color: var(--red); }
+  .feedback-badge .icon { font-size: 1.2rem; flex-shrink: 0; margin-top: 1px; }
+
+  /* ── Clarity bar ── */
+  .clarity-row {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .clarity-label { font-size: .85rem; font-weight: 500; color: var(--ink-soft); white-space: nowrap; }
+  .clarity-track {
+    flex: 1; height: 8px; background: var(--paper-warm);
+    border-radius: 99px; overflow: hidden;
+  }
+  .clarity-fill {
+    height: 100%; border-radius: 99px;
+    transition: width .6s cubic-bezier(.4,0,.2,1);
+  }
+  .clarity-pct { font-size: .85rem; font-weight: 600; min-width: 38px; text-align: right; }
+
+  /* ── Tags ── */
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .tag {
+    font-size: .78rem; padding: 3px 10px; border-radius: 99px;
+    font-weight: 500;
+  }
+  .tag-red    { background: var(--red-dim);   color: var(--red); }
+  .tag-green  { background: var(--green-dim); color: var(--green); }
+
+  /* ── Checklist items ── */
+  .checklist-item {
+    border-left: 3px solid var(--border);
+    padding: 10px 12px; margin-bottom: 10px;
+    border-radius: 0 8px 8px 0;
+    background: var(--paper);
+  }
+  .checklist-item.ok   { border-color: var(--green); }
+  .checklist-item.warn { border-color: var(--orange); }
+  .checklist-item.bad  { border-color: var(--red); }
+
+  .item-row { display: flex; gap: 10px; align-items: flex-start; }
+  .item-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+  .item-text { font-size: .9rem; line-height: 1.5; }
+
+  .tip {
+    display: flex; gap: 8px; align-items: flex-start;
+    margin-top: 7px; padding-left: 26px;
+    font-size: .82rem; color: var(--ink-soft); line-height: 1.5;
+  }
+  .tip-icon { flex-shrink: 0; font-size: .85rem; }
+
+  /* ── Divider ── */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+
+  /* ── Reformulation modal ── */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(26,26,46,.5);
+    backdrop-filter: blur(3px);
+    z-index: 200;
+    display: flex; align-items: flex-end;
+    opacity: 0; pointer-events: none;
+    transition: opacity .25s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+
+  .modal {
+    background: #fff;
+    border-radius: 20px 20px 0 0;
+    width: 100%; max-width: 680px;
+    margin: 0 auto;
+    max-height: 92vh;
+    display: flex; flex-direction: column;
+    transform: translateY(30px);
+    transition: transform .3s cubic-bezier(.4,0,.2,1);
+  }
+  .modal-overlay.open .modal { transform: translateY(0); }
+
+  .modal-header {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .modal-header h2 {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.2rem; font-weight: 400;
+  }
+  .modal-close {
+    background: var(--paper-warm); border: none;
+    width: 32px; height: 32px; border-radius: 50%;
+    cursor: pointer; font-size: 1.1rem;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-soft);
+  }
+
+  .modal-body { overflow-y: auto; padding: 20px; flex: 1; }
+  .modal-footer {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    display: flex; gap: 10px;
+    flex-shrink: 0;
+  }
+
+  /* ── Stepper ── */
+  .stepper {
+    display: flex; align-items: center;
+    margin-bottom: 24px;
+  }
+  .step-dot {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .8rem; font-weight: 600; flex-shrink: 0;
+    transition: all .2s;
+  }
+  .step-dot.active   { background: var(--accent); color: #fff; }
+  .step-dot.done     { background: var(--green);  color: #fff; }
+  .step-dot.inactive { background: var(--paper-warm); color: var(--ink-soft); }
+  .step-line {
+    flex: 1; height: 2px; background: var(--paper-warm);
+    transition: background .3s;
+  }
+  .step-line.done { background: var(--green); }
+  .step-label {
+    font-size: .72rem; text-align: center; margin-top: 4px;
+    color: var(--ink-soft); white-space: nowrap;
+  }
+  .step-wrap { display: flex; flex-direction: column; align-items: center; }
+
+  /* ── Filter chips ── */
+  .chip-row { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
+  .chip {
+    padding: 5px 12px; border-radius: 99px;
+    font-size: .8rem; font-weight: 500; cursor: pointer;
+    border: 1.5px solid var(--border);
+    background: #fff; color: var(--ink-soft);
+    transition: all .15s;
+  }
+  .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .chip:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Option buttons ── */
+  .option-btn {
+    width: 100%; text-align: left;
+    padding: 12px 14px; margin-bottom: 8px;
+    border: 1.5px solid var(--border); border-radius: 10px;
+    background: #fff; cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .9rem; color: var(--ink);
+    display: flex; align-items: center; gap: 10px;
+    transition: all .15s;
+  }
+  .option-btn:hover { border-color: var(--accent); background: var(--accent-dim); }
+  .option-btn.selected { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); font-weight: 500; }
+  .option-btn .check { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: .7rem; }
+  .option-btn.selected .check { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* ── Preview indicator ── */
+  .preview-box {
+    background: var(--accent-dim);
+    border: 1.5px solid #c4b8f5;
+    border-radius: 10px; padding: 14px;
+    font-size: .95rem; line-height: 1.6;
+    color: var(--ink); margin-top: 16px;
+  }
+  .preview-label {
+    font-size: .7rem; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--accent);
+    margin-bottom: 6px;
+  }
+
+  /* ── Original context box ── */
+  .context-box {
+    background: var(--paper-warm);
+    border-radius: 8px; padding: 10px 12px;
+    font-size: .82rem; color: var(--ink-soft);
+    line-height: 1.5; margin-bottom: 18px;
+  }
+  .context-box strong { color: var(--ink); font-weight: 500; }
+
+  /* ── Verb grid ── */
+  .verb-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+  }
+  .verb-btn {
+    padding: 10px 8px; border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: #fff; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; text-align: center;
+    transition: all .15s;
+  }
+  .verb-btn:hover { border-color: var(--accent); background: var(--accent-dim); }
+  .verb-btn.selected { border-color: var(--accent); background: var(--accent-dim); }
+  .verb-btn .verb-name { font-size: .9rem; font-weight: 600; color: var(--ink); }
+  .verb-btn .verb-domain { font-size: .72rem; color: var(--ink-soft); margin-top: 2px; }
+  .verb-btn.selected .verb-name { color: var(--accent); }
+
+  /* ── Help accordion ── */
+  details { margin-bottom: 6px; }
+  summary {
+    cursor: pointer; padding: 10px 12px;
+    background: var(--paper-warm); border-radius: 8px;
+    font-weight: 500; font-size: .88rem;
+    list-style: none; display: flex; justify-content: space-between; align-items: center;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: '＋'; font-size: .9rem; color: var(--ink-soft); }
+  details[open] summary::after { content: '－'; }
+  details p {
+    padding: 10px 12px; font-size: .85rem;
+    color: var(--ink-soft); line-height: 1.6;
+    border: 1px solid var(--border); border-top: none;
+    border-radius: 0 0 8px 8px;
+  }
+
+  /* ── Empty state ── */
+  .empty-state {
+    text-align: center; padding: 40px 20px; color: var(--ink-soft);
+  }
+  .empty-state .big-icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .empty-state p { font-size: .9rem; line-height: 1.6; }
+
+  /* ── Subject field ── */
+  .subject-row { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
+  .subject-row label { font-size: .85rem; font-weight: 500; white-space: nowrap; color: var(--ink-soft); }
+  .subject-row input {
+    flex: 1; padding: 8px 12px; border-radius: 8px;
+    border: 1.5px solid var(--border);
+    font-family: 'DM Sans', sans-serif; font-size: .9rem;
+    outline: none; transition: border-color .2s;
+  }
+  .subject-row input:focus { border-color: var(--accent); }
+
+  @media (max-width: 480px) {
+    header h1 { font-size: 1.3rem; }
+    .verb-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+    <circle cx="13" cy="13" r="9" stroke="#a0a0f0" stroke-width="2.5"/>
+    <line x1="20" y1="20" x2="28" y2="28" stroke="#a0a0f0" stroke-width="2.5" stroke-linecap="round"/>
+    <rect x="10" y="9" width="2" height="8" rx="1" fill="#fff"/>
+    <rect x="14" y="9" width="5" height="2" rx="1" fill="#fff"/>
+    <rect x="14" y="13" width="4" height="2" rx="1" fill="#fff"/>
+    <rect x="14" y="17" width="3" height="2" rx="1" fill="#fff"/>
+  </svg>
+  <div>
+    <h1>IEvaluate</h1>
+    <p>Analyseur d'indicateurs ACM — Formation HEP</p>
+  </div>
+</header>
+
+<main>
+
+  <!-- Saisie -->
+  <div class="card">
+    <p class="section-label">Ton indicateur</p>
+    <textarea id="inputText"
+      placeholder="Écris ou colle ton indicateur ici…&#10;&#10;Ex. : L'élève réalise un beau travail de découpe.&#10;&#10;Pour une liste à puces, commence chaque ligne par - ou •"></textarea>
+    <p class="input-hint">💡 Tu peux saisir un indicateur simple ou une liste à puces (une par ligne, commençant par <code>-</code> ou <code>•</code>).</p>
+    <button class="btn btn-primary" id="analyzeBtn" onclick="runAnalysis()">
+      <span>🔍</span> Analyser l'indicateur
+    </button>
+  </div>
+
+  <!-- Résultats (cachés au départ) -->
+  <div id="results" style="display:none">
+
+    <div class="card" id="resultsCard">
+      <!-- feedback badge -->
+      <div id="feedbackBadge" class="feedback-badge"></div>
+
+      <!-- clarté -->
+      <div class="clarity-row">
+        <span class="clarity-label">Clarté</span>
+        <div class="clarity-track"><div class="clarity-fill" id="clarityFill"></div></div>
+        <span class="clarity-pct" id="clarityPct"></span>
+      </div>
+
+      <!-- mots détectés -->
+      <div id="tagsSection"></div>
+
+      <hr class="divider">
+
+      <!-- checklist items -->
+      <div id="checklistSection"></div>
+
+      <!-- boutons -->
+      <div id="actionButtons" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;">
+        <button class="btn btn-outline" onclick="toggleHelp()">❓ Aide</button>
+        <button class="btn btn-ghost" id="reformBtn" onclick="openReformulation()" style="display:none">
+          ✏️ Reformuler
+        </button>
+      </div>
+    </div>
+
+    <!-- Aide détaillée -->
+    <div id="helpSection" style="display:none">
+      <div class="card">
+        <p class="section-label">Aide détaillée</p>
+        <div id="helpContent"></div>
+      </div>
+    </div>
+
+  </div>
+
+</main>
+
+<!-- ═══════════════════════════════════════════
+     MODAL REFORMULATION
+════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modalOverlay" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Reformuler l'indicateur</h2>
+      <button class="modal-close" onclick="closeReformulation()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <!-- contenu dynamique -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" id="btnBack" onclick="reformStep('back')" style="display:none">← Retour</button>
+      <button class="btn btn-primary" id="btnNext" onclick="reformStep('next')" style="flex:1">Suivant →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// DONNÉES
+// ═══════════════════════════════════════
+
+const SUBJECTIVE_WORDS = new Set([
+  "beau","beaux","belle","belles","intéressant","intéressante","intéressants","intéressantes",
+  "bon","bonne","bons","bonnes","bien","agréable","agréables","réussi","réussie","réussis","réussies",
+  "expressif","expressive","expressifs","expressives","original","originale","originaux","originales",
+  "pertinent","pertinente","pertinents","pertinentes","satisfaisant","satisfaisante",
+  "satisfaisants","satisfaisantes","précis","précise","précises","médiocre","médiocres",
+  "magnifique","magnifiques","harmonieux","harmonieuse","harmonieuses","correctement",
+  "créatif","créative","créatifs","créatives","faible","faibles","régulier","régulière",
+  "réguliers","régulières","approprié","appropriée","appropriés","appropriées",
+  "efficace","efficaces","logique","cohérent","cohérente","cohérents","cohérentes",
+  "durable","durables","propre","propres","soigné","soignée","soignés","soignées",
+  "faisable","faisables","complexe","complexes","autonome","autonomes",
+  "personnel","personnelle","personnels","personnelles","esthétique","esthétiques",
+  "maîtriser","maîtrisé","maîtrise","comprendre","compris","comprend",
+  "faire","fait","réussir","adapter","adapté","adaptée"
+]);
+
+const OBSERVABLE_VERBS = new Set([
+  "concevoir","conçu","conçoit","construire","construit","corriger","corrigé","corrige",
+  "découper","découpé","découpe","déchirer","déchiré","déchire","enfiler","enfilé","enfile",
+  "exécuter","exécuté","exécute","fabriquer","fabriqué","fabrique","façonner","façonné","façonne",
+  "fixer","fixé","identifie","identifier","identifié","utiliser","utilisé","utilise",
+  "adapter","adapté","adapte","contrôler","contrôlé","contrôle","planifier","planifié","planifie",
+  "transformer","transformé","transforme","reproduire","reproduit","séparer","séparé","sépare",
+  "tester","testé","teste","tisser","tissé","tisse","tordre","tordu","tord",
+  "insérer","inséré","insère","peindre","peint","produire","produit","réaliser","réalisé","réalise",
+  "tracer","tracé","trace","schématiser","schématisé","schématise","modeler","modelé",
+  "modifier","modifié","modifie","nommer","nommé","nomme","observer","observé","observe",
+  "participer","participé","participe","réguler","régulé","régule","sélectionner","sélectionné","sélectionne",
+  "coller","collé","colle","suivre","suivi","assembler","assemblé","assemble",
+  "plier","plié","plie","scotcher","scotché","scotche","sculpter","sculpté","sculpte",
+  "lisser","lissé","lisse","percer","percé","perce","mesurer","mesuré","mesure",
+  "étiqueter","étiqueté","étiquette","légender","légendé","légende","coudre","cousu","coud",
+  "dessiner","dessiné","dessine","colorier","colorié","colorie","classer","classé","classe",
+  "trier","trié","trie","noter","noté","note","compter","compté","compte",
+  "vérifier","vérifié","vérifie","comparer","comparé","compare","annoter","annoté","annote",
+  "monter","monté","monte","démonter","démonté","démonte","numéroter","numéroté",
+  "tenir","tenu","tient"
+]);
+
+const HELP_MESSAGES = {
+  "beau":"Définir des critères visibles (équilibre, contraste, finitions).",
+  "beaux":"Définir des critères visibles (équilibre, contraste, finitions).",
+  "belle":"Définir des critères visibles (équilibre, contraste, finitions).",
+  "esthétique":"Expliciter les critères (harmonie des couleurs, contraste, rythme).",
+  "magnifique":"Préférer des critères observables (propreté des bords, régularité).",
+  "harmonieux":"Préciser les critères d'harmonie (répétition, symétrie, alignement).",
+  "harmonieuse":"Préciser les critères d'harmonie (répétition, symétrie, alignement).",
+  "intéressant":"Dire selon quoi (originalité, contrainte respectée, efficacité).",
+  "intéressante":"Dire selon quoi (originalité, contrainte respectée, efficacité).",
+  "bon":"Préciser la base de jugement (critères techniques ou esthétiques).",
+  "bonne":"Préciser la base de jugement (critères techniques ou esthétiques).",
+  "bien":"Expliciter ce qui est attendu (ex. surface recouverte, pas de bavures).",
+  "pertinent":"Préciser par rapport à quel objectif ou contrainte.",
+  "pertinente":"Préciser par rapport à quel objectif ou contrainte.",
+  "satisfaisant":"Dire quel seuil ou quels critères rendent la production satisfaisante.",
+  "original":"Indiquer 2 éléments distinctifs + comparaison à 2 exemples de la classe.",
+  "originale":"Indiquer 2 éléments distinctifs + comparaison à 2 exemples de la classe.",
+  "personnel":"Préciser ce qui rend la production identifiable (motif, variation, signature).",
+  "personnelle":"Préciser ce qui rend la production identifiable (motif, variation, signature).",
+  "créatif":"Définir la créativité par des preuves (variantes testées, combinaison de matériaux).",
+  "créative":"Définir la créativité par des preuves (variantes testées, combinaison de matériaux).",
+  "propre":"Définir 2 critères (pas de bavure >2 mm, pas d'excès de colle, surface uniforme).",
+  "propres":"Définir 2 critères (pas de bavure >2 mm, pas d'excès de colle, surface uniforme).",
+  "soigné":"Lister des indicateurs (bords nets, collage sans bourrelets, régularité).",
+  "soignée":"Lister des indicateurs (bords nets, collage sans bourrelets, régularité).",
+  "correctement":"Remplacer par des critères mesurables (tolérance, temps, propreté).",
+  "précis":"Fixer la tolérance (ex. écart ≤1–2 mm par rapport au trait).",
+  "précise":"Fixer la tolérance (ex. écart ≤1–2 mm par rapport au trait).",
+  "régulier":"Préciser l'intervalle attendu (ex. espacement 5 ±1 mm).",
+  "régulière":"Préciser l'intervalle attendu (ex. espacement 5 ±1 mm).",
+  "efficace":"Pour quel but ? Fixer un test/critère (supporte 100 g, ne se décolle pas).",
+  "efficaces":"Pour quel but ? Fixer un test/critère (supporte 100 g, ne se décolle pas).",
+  "logique":"Expliciter 2 critères (ordre des étapes, continuité des formes, symétrie).",
+  "cohérent":"Dire avec quoi (consigne, croquis) et comment on l'observe.",
+  "durable":"Définir la contrainte (résiste à 3 manipulations, 1 semaine d'usage).",
+  "durables":"Définir la contrainte (résiste à 3 manipulations, 1 semaine d'usage).",
+  "complexe":"Définir la complexité (nb techniques, nb pièces, temps estimé).",
+  "approprié":"Préciser selon quel critère (solidité, flexibilité, compatibilité matériau).",
+  "adapté":"Éviter seul — préciser « selon quoi » (échelle, matériau, usage).",
+  "adaptée":"Éviter seul — préciser « selon quoi » (échelle, matériau, usage).",
+  "maîtriser":"Flou sans seuils. Donner un niveau attendu (tolérance, nombre d'erreurs max).",
+  "maîtrisé":"Flou sans seuils. Donner un niveau attendu (tolérance, nombre d'erreurs max).",
+  "comprendre":"À éviter comme indicateur. Exige une preuve observable.",
+  "faire":"Trop général. Préciser l'action, la quantité, la tolérance.",
+  "tenir":"Définir un test : ex. tenir 10 s sans tomber/glisser.",
+};
+
+const ACM_CATALOG = [
+  { verb:"Découper", domain:"Fabrication",
+    conditions:["au ciseau","au cutter sur tapis","suivant un gabarit tracé","en suivant le tracé au crayon"],
+    criteria:["avec des bords nets et sans déchirure","en restant à moins de 2 mm du tracé","en respectant les angles à 90° ± 2°"] },
+  { verb:"Assembler", domain:"Fabrication",
+    conditions:["par collage","par couture point droit","par agrafage","par enfilage"],
+    criteria:["de façon à tenir 30 secondes sous une traction légère","sans excès de colle visible en surface","avec un alignement à ± 2 mm","sans fil apparent sur l'endroit"] },
+  { verb:"Tracer", domain:"Fabrication",
+    conditions:["à la règle","au compas","à main levée","par report de gabarit"],
+    criteria:["en un trait continu sans reprise","avec une épaisseur régulière inférieure à 0,5 mm","avec une précision de ± 1 mm"] },
+  { verb:"Mesurer", domain:"Fabrication",
+    conditions:["à la règle graduée","au mètre ruban","à l'aide d'un gabarit"],
+    criteria:["avec une tolérance de ± 1 mm","avec une tolérance de ± 2 mm","en reportant la valeur mesurée sur le matériau"] },
+  { verb:"Plier", domain:"Fabrication",
+    conditions:["à l'aide d'un plioir","sur une rainure préalablement tracée","à main levée"],
+    criteria:["en obtenant un angle à 90° ± 3°","avec un pli net et sans craquelure","les deux bords alignés à ± 2 mm"] },
+  { verb:"Peindre", domain:"Fabrication",
+    conditions:["au pinceau plat","au rouleau mousse","à l'éponge","par projection"],
+    criteria:["en couvrant entièrement la surface sans zone transparente","sans coulure visible","avec un débordement inférieur à 2 mm hors de la zone définie"] },
+  { verb:"Modeler", domain:"Fabrication",
+    conditions:["avec de la pâte à sel","avec de l'argile","avec de la pâte polymère"],
+    criteria:["obtenant une forme reconnue par au moins 3 élèves sur 4","avec une surface lissée et sans fissure","qui tient en équilibre seul pendant 10 secondes"] },
+  { verb:"Tisser", domain:"Fabrication",
+    conditions:["sur un cadre en carton","sur un métier à tisser simple"],
+    criteria:["en respectant l'alternance dessus/dessous","avec une tension régulière sans fil lâche","avec une trame couvrant plus de 80% de la chaîne"] },
+  { verb:"Schématiser", domain:"Conception",
+    conditions:["une étape de fabrication","l'assemblage final de l'objet","la structure interne de l'objet"],
+    criteria:["avec au moins 2 légendes correctement placées","en respectant les proportions à ± 20%","de façon lisible sans explication orale"] },
+  { verb:"Concevoir", domain:"Conception",
+    conditions:["un croquis annoté au format A5","2 variantes de solution différentes","une maquette de principe en carton"],
+    criteria:["en indiquant le matériau de chaque pièce","en respectant la contrainte principale de la consigne","avec les dimensions approximatives notées"] },
+  { verb:"Reproduire", domain:"Conception",
+    conditions:["un motif géométrique donné","un assemblage modèle fourni","un patron à l'échelle 1:1"],
+    criteria:["avec un écart maximal de 2 mm par rapport au modèle","en incluant toutes les pièces du modèle","avec l'orientation correcte de chaque élément"] },
+  { verb:"Identifier", domain:"Observation",
+    conditions:["le matériau principal d'un objet","la technique de fabrication utilisée","une erreur dans une réalisation donnée"],
+    criteria:["en le nommant correctement sans aide","en justifiant avec au moins 1 caractéristique visible","avec 3 réponses correctes sur 4 proposées"] },
+  { verb:"Comparer", domain:"Observation",
+    conditions:["2 matériaux selon leurs propriétés physiques","2 techniques d'assemblage","sa propre réalisation avec le modèle fourni"],
+    criteria:["en citant au moins 2 différences concrètes","à l'aide d'un tableau à 2 colonnes complété","en formulant une conclusion en une phrase"] },
+  { verb:"Tester", domain:"Observation",
+    conditions:["la résistance d'un assemblage","l'étanchéité d'un contenant","la solidité d'une structure"],
+    criteria:["en notant le résultat (réussi / échoué)","en décrivant les conditions du test par écrit","en répétant le test 2 fois dans les mêmes conditions"] },
+  { verb:"Planifier", domain:"Organisation",
+    conditions:["les étapes de fabrication de son objet","l'ordre des opérations","la liste des matériaux nécessaires"],
+    criteria:["en listant au moins 4 étapes dans l'ordre correct","en associant un outil à chaque étape","de façon réalisable dans le temps imparti"] },
+  { verb:"Sélectionner", domain:"Organisation",
+    conditions:["un matériau adapté à la contrainte donnée","l'outil approprié à la tâche","une technique parmi les 3 proposées"],
+    criteria:["en justifiant son choix en une phrase","en citant la contrainte que ce choix respecte","en excluant les autres options avec un argument"] },
+  { verb:"Vérifier", domain:"Vérification",
+    conditions:["les dimensions de sa réalisation","la conformité avec la consigne","la solidité de l'assemblage"],
+    criteria:["en cochant chaque point d'une checklist fournie","en mesurant et notant l'écart constaté","en formulant une correction si l'écart dépasse la tolérance"] },
+  { verb:"Corriger", domain:"Vérification",
+    conditions:["un tracé imprécis","un assemblage mal aligné","une découpe hors tolérance"],
+    criteria:["sans avoir à refaire entièrement la pièce","avec un résultat dans la tolérance après correction","en expliquant oralement la cause de l'erreur"] },
+  { verb:"Présenter", domain:"Communication",
+    conditions:["sa réalisation à la classe","ses choix techniques à l'enseignant·e","la démarche suivie à l'oral"],
+    criteria:["en citant au moins 2 choix techniques effectués","en moins de 2 minutes","sans lire ses notes"] },
+  { verb:"Légender", domain:"Communication",
+    conditions:["un schéma de fabrication","les différentes parties d'un objet","les matériaux utilisés"],
+    criteria:["avec au moins 3 légendes correctes et lisibles","avec des traits de rappel sans croisement","en utilisant les termes techniques exacts"] },
+];
+
+const DOMAINS = [...new Set(ACM_CATALOG.map(e => e.domain))];
+
+// ═══════════════════════════════════════
+// ANALYSE NLP
+// ═══════════════════════════════════════
+
+function tokenize(text) {
+  return text.toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, c => c) // garde accents pour matching
+    .split(/[\s,;:.!?()\[\]"«»]+/)
+    .filter(w => w.length > 1);
+}
+
+function analyzeText(text) {
+  const lower = text.toLowerCase();
+  const words = tokenize(text);
+
+  const foundSub = [...new Set(words.filter(w => SUBJECTIVE_WORDS.has(w)))];
+  const foundCon = [...new Set(words.filter(w => OBSERVABLE_VERBS.has(w)))];
+
+  // Score de clarté
+  let score;
+  if (foundCon.length > 0 && foundSub.length === 0)       score = 1.0;
+  else if (foundCon.length === 0 && foundSub.length > 0)  score = 0.25;
+  else if (foundCon.length === 0 && foundSub.length === 0) score = 0.5;
+  else {
+    const k = 1.0;
+    score = (foundCon.length + k) / (foundCon.length + 0.6 * foundSub.length + 2 * k);
+  }
+
+  const suggestions = {};
+  foundSub.forEach(w => { if (HELP_MESSAGES[w]) suggestions[w] = HELP_MESSAGES[w]; });
+
+  return { subjectifs: foundSub, concrets: foundCon, suggestions, clarityScore: score };
+}
+
+const BULLET_RE = /^[\-•–\*]\s+/;
+
+function analyzeChecklist(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const bulletLines = lines.filter(l => BULLET_RE.test(l));
+  if (bulletLines.length === 0) return { global: analyzeText(text), items: [] };
+
+  const items = bulletLines.map(line => {
+    const raw = line.replace(BULLET_RE, '');
+    const lower = raw.toLowerCase();
+    const words = tokenize(raw);
+    const subMatches = words.filter(w => SUBJECTIVE_WORDS.has(w));
+    const conMatches = words.filter(w => OBSERVABLE_VERBS.has(w));
+    const tips = [...new Set(subMatches.flatMap(w => HELP_MESSAGES[w] ? [HELP_MESSAGES[w]] : []))];
+    if (lower.includes('tenir') || lower.includes('peut tenir'))
+      tips.push("Définir un test : ex. tenir 10 s sans tomber/glisser.");
+    if (lower.includes('résist'))
+      tips.push("Préciser le test de résistance : durée/conditions (secousses, transport).");
+
+    const hasFunctional = lower.includes('tenir') || lower.includes('résist');
+    let status;
+    if (conMatches.length > 0 && subMatches.length === 0 && !hasFunctional) status = 'ok';
+    else if (conMatches.length > 0 || hasFunctional) status = 'warn';
+    else if (subMatches.length > 0) status = 'bad';
+    else status = 'warn';
+
+    return { raw, status, tips };
+  });
+
+  const weights = { ok: 1, warn: 0, bad: -1 };
+  const rawScore = items.reduce((s, i) => s + weights[i.status], 0);
+  const normalized = (rawScore + items.length) / (2 * Math.max(1, items.length));
+  const global = analyzeText(text);
+  global.clarityScore = normalized;
+
+  return { global, items };
+}
+
+// ═══════════════════════════════════════
+// RENDU RÉSULTATS
+// ═══════════════════════════════════════
+
+let lastAnalysis = null;
+
+function runAnalysis() {
+  const text = document.getElementById('inputText').value.trim();
+  if (!text) return;
+
+  const hasBullets = text.split('\n').some(l => BULLET_RE.test(l.trim()));
+  const { global, items } = hasBullets ? analyzeChecklist(text) : { global: analyzeText(text), items: [] };
+  lastAnalysis = { text, global, items };
+
+  renderResults(global, items);
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('helpSection').style.display = 'none';
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderResults(global, items) {
+  const { subjectifs, concrets, clarityScore } = global;
+
+  // Badge feedback
+  const badge = document.getElementById('feedbackBadge');
+  let icon, msg, cls;
+  if (concrets.length > 0 && subjectifs.length === 0) {
+    icon='✅'; msg="Élevé — ton indicateur est précis et observable !"; cls='ok';
+  } else if (concrets.length > 0 && subjectifs.length > 0) {
+    icon='⚠️'; msg="Moyen — verbe correct, mais formulation encore floue."; cls='warn';
+  } else if (concrets.length === 0 && subjectifs.length > 0) {
+    icon='❌'; msg="Faible — utilise un verbe d'action mesurable et évite les termes subjectifs."; cls='bad';
+  } else {
+    icon=''; msg="Aucun mot-clé détecté. Essaie d'être plus précis."; cls='warn';
+  }
+  badge.className = `feedback-badge ${cls}`;
+  badge.innerHTML = `<span class="icon">${icon}</span><span>${msg}</span>`;
+
+  // Clarté
+  const pct = Math.round(clarityScore * 100);
+  document.getElementById('clarityFill').style.width = pct + '%';
+  document.getElementById('clarityFill').style.background =
+    pct >= 75 ? 'var(--green)' : pct >= 50 ? 'var(--orange)' : 'var(--red)';
+  document.getElementById('clarityPct').textContent = pct + '%';
+  document.getElementById('clarityPct').style.color =
+    pct >= 75 ? 'var(--green)' : pct >= 50 ? 'var(--orange)' : 'var(--red)';
+
+  // Tags
+  let tagsHtml = '';
+  if (subjectifs.length > 0) {
+    tagsHtml += `<p style="font-size:.8rem;color:var(--red);font-weight:500;margin-bottom:5px">🔴 Termes subjectifs détectés</p>`;
+    tagsHtml += `<div class="tags">${subjectifs.map(w=>`<span class="tag tag-red">${w}</span>`).join('')}</div>`;
+  }
+  if (concrets.length > 0) {
+    tagsHtml += `<p style="font-size:.8rem;color:var(--green);font-weight:500;margin:10px 0 5px">🟢 Verbes observables détectés</p>`;
+    tagsHtml += `<div class="tags">${concrets.map(w=>`<span class="tag tag-green">${w}</span>`).join('')}</div>`;
+  }
+  document.getElementById('tagsSection').innerHTML = tagsHtml;
+
+  // Checklist
+  let clHtml = '';
+  if (items.length > 0) {
+    clHtml = `<p class="section-label" style="margin-bottom:10px">Détail par point</p>`;
+    items.forEach(item => {
+      const icon = item.status === 'ok' ? '✅' : item.status === 'warn' ? '⚠️' : '❌';
+      const tips = item.tips.map(t =>
+        `<div class="tip"><span class="tip-icon">💡</span><span>${t}</span></div>`
+      ).join('');
+      clHtml += `
+        <div class="checklist-item ${item.status}">
+          <div class="item-row">
+            <span class="item-icon">${icon}</span>
+            <span class="item-text">${escHtml(item.raw)}</span>
+          </div>
+          ${tips}
+        </div>`;
+    });
+  }
+  document.getElementById('checklistSection').innerHTML = clHtml;
+
+  // Bouton reformuler
+  const showReform = cls === 'warn' || cls === 'bad';
+  document.getElementById('reformBtn').style.display = showReform ? 'inline-flex' : 'none';
+
+  // Aide
+  renderHelp(subjectifs, global.suggestions);
+}
+
+function renderHelp(subjectifs, suggestions) {
+  const hints = subjectifs.filter(w => HELP_MESSAGES[w]);
+  let html = '';
+  if (hints.length === 0) {
+    html = '<p style="color:var(--ink-soft);font-size:.9rem">Aucune aide disponible pour les mots détectés.</p>';
+  } else {
+    hints.forEach(mot => {
+      html += `<details><summary>${capitalize(mot)}</summary><p>${HELP_MESSAGES[mot]}</p></details>`;
+    });
+  }
+  document.getElementById('helpContent').innerHTML = html;
+}
+
+function toggleHelp() {
+  const s = document.getElementById('helpSection');
+  s.style.display = s.style.display === 'none' ? 'block' : 'none';
+}
+
+// ═══════════════════════════════════════
+// REFORMULATION GUIDÉE
+// ═══════════════════════════════════════
+
+let rState = {
+  step: 1,            // 1=verbe, 2=condition, 3=critères
+  subject: "L'élève",
+  domainFilter: null,
+  selectedVerb: null,
+  selectedCondition: null,
+  selectedCriteria: new Set(),
+};
+
+function openReformulation() {
+  rState = { step:1, subject:"L'élève", domainFilter:null, selectedVerb:null, selectedCondition:null, selectedCriteria:new Set() };
+  renderModalStep();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeReformulation() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeReformulation();
+}
+
+function reformStep(dir) {
+  if (dir === 'next') {
+    if (rState.step === 1 && !rState.selectedVerb) return;
+    if (rState.step === 2 && !rState.selectedCondition) return;
+    if (rState.step === 3) {
+      if (rState.selectedCriteria.size === 0) return;
+      // Valider
+      const indicator = buildIndicator();
+      closeReformulation();
+      document.getElementById('inputText').value = indicator;
+      runAnalysis();
+      return;
+    }
+    rState.step++;
+  } else {
+    rState.step = Math.max(1, rState.step - 1);
+  }
+  renderModalStep();
+}
+
+function renderModalStep() {
+  const body = document.getElementById('modalBody');
+  const btnBack = document.getElementById('btnBack');
+  const btnNext = document.getElementById('btnNext');
+
+  btnBack.style.display = rState.step > 1 ? 'inline-flex' : 'none';
+  btnNext.textContent = rState.step === 3 ? '✓ Utiliser cet indicateur' : 'Suivant →';
+
+  // Stepper
+  const stepLabels = ['Verbe', 'Condition', 'Critère(s)'];
+  let stepperHtml = '<div class="stepper">';
+  stepLabels.forEach((lbl, i) => {
+    const n = i + 1;
+    const cls = n < rState.step ? 'done' : n === rState.step ? 'active' : 'inactive';
+    const icon = n < rState.step ? '✓' : n;
+    stepperHtml += `
+      <div class="step-wrap">
+        <div class="step-dot ${cls}">${icon}</div>
+        <div class="step-label">${lbl}</div>
+      </div>`;
+    if (i < 2) stepperHtml += `<div class="step-line ${n < rState.step ? 'done':''}"></div>`;
+  });
+  stepperHtml += '</div>';
+
+  // Contexte original
+  const origText = lastAnalysis ? lastAnalysis.text : '';
+  const ctxHtml = `<div class="context-box"><strong>Indicateur original :</strong> ${escHtml(origText.slice(0,120))}${origText.length>120?'…':''}</div>`;
+
+  let contentHtml = '';
+
+  if (rState.step === 1) {
+    // Sujet
+    contentHtml += `
+      <div class="subject-row">
+        <label>Sujet</label>
+        <input type="text" id="subjectInput" value="${escHtml(rState.subject)}"
+          oninput="rState.subject=this.value;updatePreview()"
+          placeholder="L'élève, L'étudiant·e…">
+      </div>`;
+    // Filtre domaine
+    contentHtml += `<p class="section-label">Domaine ACM</p><div class="chip-row">`;
+    contentHtml += `<span class="chip ${!rState.domainFilter?'active':''}" onclick="setDomain(null)">Tous</span>`;
+    DOMAINS.forEach(d => {
+      contentHtml += `<span class="chip ${rState.domainFilter===d?'active':''}" onclick="setDomain('${d}')">${d}</span>`;
+    });
+    contentHtml += `</div>`;
+    // Verbes
+    contentHtml += `<p class="section-label" style="margin-top:4px">Verbe d'action observable</p>`;
+    contentHtml += `<div class="verb-grid">`;
+    const filtered = rState.domainFilter ? ACM_CATALOG.filter(e=>e.domain===rState.domainFilter) : ACM_CATALOG;
+    filtered.forEach((entry, idx) => {
+      const sel = rState.selectedVerb && rState.selectedVerb.verb === entry.verb;
+      contentHtml += `
+        <button class="verb-btn ${sel?'selected':''}" onclick="selectVerb(${ACM_CATALOG.indexOf(entry)})">
+          <div class="verb-name">${entry.verb}</div>
+          <div class="verb-domain">${entry.domain}</div>
+        </button>`;
+    });
+    contentHtml += `</div>`;
+  }
+
+  else if (rState.step === 2) {
+    contentHtml += `<p class="section-label">Condition d'application — <em>${rState.selectedVerb.verb}</em></p>`;
+    rState.selectedVerb.conditions.forEach((cond, i) => {
+      const sel = rState.selectedCondition === cond;
+      contentHtml += `
+        <button class="option-btn ${sel?'selected':''}" onclick="selectCondition(${i})">
+          <span class="check">${sel?'✓':''}</span>${escHtml(cond)}
+        </button>`;
+    });
+  }
+
+  else if (rState.step === 3) {
+    contentHtml += `<p class="section-label">Critère(s) observable(s) — choisis 1 ou 2</p>`;
+    if (rState.selectedCriteria.size > 2) {
+      contentHtml += `<p style="color:var(--orange);font-size:.82rem;margin-bottom:10px">⚠️ Maximum 2 critères recommandés pour rester lisible.</p>`;
+    }
+    rState.selectedVerb.criteria.forEach((crit, i) => {
+      const sel = rState.selectedCriteria.has(i);
+      contentHtml += `
+        <button class="option-btn ${sel?'selected':''}" onclick="toggleCriteria(${i})">
+          <span class="check">${sel?'✓':''}</span>${escHtml(crit)}
+        </button>`;
+    });
+  }
+
+  // Aperçu
+  if (rState.selectedVerb) {
+    contentHtml += `
+      <div class="preview-box">
+        <div class="preview-label">👁 Aperçu</div>
+        <div id="previewText">${escHtml(buildIndicator())}</div>
+      </div>`;
+  }
+
+  body.innerHTML = stepperHtml + ctxHtml + contentHtml;
+}
+
+function setDomain(d) {
+  rState.domainFilter = d;
+  if (rState.selectedVerb && d && rState.selectedVerb.domain !== d) {
+    rState.selectedVerb = null; rState.selectedCondition = null; rState.selectedCriteria = new Set();
+  }
+  renderModalStep();
+}
+
+function selectVerb(idx) {
+  rState.selectedVerb = ACM_CATALOG[idx];
+  rState.selectedCondition = null;
+  rState.selectedCriteria = new Set();
+  renderModalStep();
+}
+
+function selectCondition(idx) {
+  rState.selectedCondition = rState.selectedVerb.conditions[idx];
+  renderModalStep();
+}
+
+function toggleCriteria(idx) {
+  if (rState.selectedCriteria.has(idx)) rState.selectedCriteria.delete(idx);
+  else rState.selectedCriteria.add(idx);
+  renderModalStep();
+}
+
+function buildIndicator() {
+  if (!rState.selectedVerb) return `${rState.subject} …`;
+  let parts = [`${rState.subject} ${rState.selectedVerb.verb.toLowerCase()}`];
+  if (rState.selectedCondition) parts.push(rState.selectedCondition);
+  const crits = [...rState.selectedCriteria].map(i => rState.selectedVerb.criteria[i]);
+  if (crits.length > 0) parts.push(crits.join(' et '));
+  return parts.join(' ') + '.';
+}
+
+function updatePreview() {
+  const el = document.getElementById('previewText');
+  if (el) el.textContent = buildIndicator();
+}
+
+// ═══════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// Analyse au Enter (Ctrl/Cmd + Enter)
+document.getElementById('inputText').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runAnalysis();
+});
+</script>
+</body>
+</html>
