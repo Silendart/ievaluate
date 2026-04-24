@@ -376,7 +376,7 @@
   </svg>
   <div>
     <h1>IEvaluate</h1>
-    <p>Analyseur d'indicateurs ACM (Massy, UER AT)</p>
+    <p>Analyseur d'indicateurs ACM — Formation HEP</p>
   </div>
 </header>
 
@@ -386,8 +386,8 @@
   <div class="card">
     <p class="section-label">Ton indicateur</p>
     <textarea id="inputText"
-      placeholder="Écris ou colle ton indicateur ici…&#10;&#10;Ex. : L'élève découpe ses pièces."></textarea>
-    <p class="input-hint">Tu peux saisir un indicateur simple ou une liste à puces (une par ligne, commençant par <code>-</code> ou <code>•</code>).</p>
+      placeholder="Écris ou colle ton indicateur ici…&#10;&#10;Ex. : L'élève réalise un beau travail de découpe.&#10;&#10;Pour une liste à puces, commence chaque ligne par - ou •"></textarea>
+    <p class="input-hint">💡 Tu peux saisir un indicateur simple ou une liste à puces (une par ligne, commençant par <code>-</code> ou <code>•</code>).</p>
     <button class="btn btn-primary" id="analyzeBtn" onclick="runAnalysis()">
       <span>🔍</span> Analyser l'indicateur
     </button>
@@ -900,15 +900,15 @@ function renderResults(global, items) {
   let icon, msg, cls;
   const { isQuantified: iq, qualityWithNum: qwn } = global;
   if (iq && global.subjectifs.length === 0) {
-    icon='🎯'; msg="Excellent : indicateur chiffré, objectif et mesurable !"; cls='ok';
+    icon='🎯'; msg="Excellent — indicateur chiffré, objectif et mesurable !"; cls='ok';
   } else if (concrets.length > 0 && subjectifs.length === 0) {
-    icon='✅'; msg="Élevé : ton indicateur est précis et observable !"; cls='ok';
+    icon='✅'; msg="Élevé — ton indicateur est précis et observable !"; cls='ok';
   } else if (concrets.length > 0 && subjectifs.length > 0) {
-    icon='⚠️'; msg="Moyen : verbe correct, mais formulation encore floue."; cls='warn';
+    icon='⚠️'; msg="Moyen — verbe correct, mais formulation encore floue."; cls='warn';
   } else if (concrets.length === 0 && subjectifs.length > 0) {
-    icon='❌'; msg="Faible : utilise un verbe d'action mesurable et évite les termes subjectifs."; cls='bad';
+    icon='❌'; msg="Faible — utilise un verbe d'action mesurable et évite les termes subjectifs."; cls='bad';
   } else if (iq) {
-    icon='🎯'; msg="Formulation chiffrée détectée : bon indicateur quantifié !"; cls='ok';
+    icon='🎯'; msg="Formulation chiffrée détectée — bon indicateur quantifié !"; cls='ok';
   } else {
     icon=''; msg="Aucun mot-clé détecté. Essaie d'être plus précis."; cls='warn';
   }
@@ -1117,14 +1117,14 @@ function renderModalStep() {
   if (rState.step === 1) {
     // Sélecteur de sujet
     const SUBJECT_OPTIONS = [
-      { value: "L’élève",               label: "L’élève",                    hint: "action directe de l’élève" },
-      { value: "L’objet",               label: "L’objet / La production",    hint: "caractéristique du produit fini" },
+      { value: "L'élève",               label: "L'élève",                    hint: "action directe de l'élève" },
+      { value: "L'objet",               label: "L'objet / La production",    hint: "caractéristique du produit fini" },
       { value: "Le croquis",            label: "Le croquis",                 hint: "qualité ou contenu du croquis" },
-      { value: "La surface",            label: "La surface / La structure",  hint: "état d’une partie de l’objet" },
+      { value: "La surface",            label: "La surface / La structure",  hint: "état d'une partie de l'objet" },
       { value: "Les éléments",          label: "Les éléments (pluriel)",     hint: "assemblages, couches, pièces…" },
       { value: "__custom__",            label: "Autre…",                     hint: "texte libre" },
     ];
-    contentHtml += `<p class="section-label" style="margin-bottom:8px">Sujet de l’indicateur</p>`;
+    contentHtml += `<p class="section-label" style="margin-bottom:8px">Sujet de l'indicateur</p>`;
     contentHtml += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">`;
     SUBJECT_OPTIONS.forEach((opt, idx) => {
       const isCustom = opt.value === '__custom__';
@@ -1184,7 +1184,7 @@ function renderModalStep() {
         <p class="section-label" style="margin-bottom:6px">
           Quantité
           <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-soft);font-size:.75rem;margin-left:6px">
-            optionnel : précise le nombre attendu
+            optionnel — précise le nombre attendu
           </span>
         </p>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
@@ -1253,8 +1253,8 @@ function setDomain(d) {
 
 // Tableau global des valeurs de sujets (évite les apostrophes dans onclick)
 const SUBJECT_VALUES = [
-  "L’élève",
-  "L’objet",
+  "L'élève",
+  "L'objet",
   "Le croquis",
   "La surface",
   "Les éléments",
