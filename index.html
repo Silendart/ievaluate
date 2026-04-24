@@ -376,7 +376,7 @@
   </svg>
   <div>
     <h1>IEvaluate</h1>
-    <p>Analyseur d'indicateurs ACM (Massy G)</p>
+    <p>Analyseur d'indicateurs ACM — Formation HEP</p>
   </div>
 </header>
 
@@ -672,9 +672,41 @@ const ACM_CATALOG = [
   { verb:"Légender", domain:"Communication",
     conditions:["un schéma de fabrication","les différentes parties d'un objet","les matériaux utilisés"],
     criteria:["avec au moins 3 légendes correctes et lisibles","avec des traits de rappel sans croisement","en utilisant les termes techniques exacts"] },
+
+  // ── Description / Contenu ──
+  { verb:"Contenir", domain:"Description",
+    conditions:["les légendes de chaque matériau","les dimensions approximatives","les étapes de fabrication","les contraintes du projet"],
+    criteria:["correctement placées et lisibles","notées en mm ou cm","dans l'ordre chronologique","toutes respectées"] },
+  { verb:"Comporter", domain:"Description",
+    conditions:["les parties principales de l'objet","les matériaux utilisés","les techniques de fabrication","les annotations nécessaires"],
+    criteria:["clairement identifiables","nommés avec le terme technique exact","représentées visuellement","complètes et lisibles"] },
+  { verb:"Inclure", domain:"Description",
+    conditions:["une vue de face et une vue de côté","le titre et la date","les mesures principales","une échelle de couleurs"],
+    criteria:["tracées à la règle","visibles sans aide","en mm ou cm","cohérente avec le projet"] },
+  { verb:"Présenter", domain:"Description",
+    conditions:["une surface entièrement couverte","une structure stable","un assemblage solide","une finition soignée"],
+    criteria:["sans zone non peinte","qui tient debout sans appui","sans jeu ni mouvement","sans résidu de colle visible"] },
+  { verb:"Indiquer", domain:"Description",
+    conditions:["le matériau de chaque pièce","les dimensions de l'objet","la technique utilisée","l'ordre des étapes"],
+    criteria:["avec le nom exact du matériau","en mm ou cm avec tolérance ± 2 mm","par son nom technique","numérotées de 1 à N"] },
+  { verb:"Respecter", domain:"Description",
+    conditions:["les contraintes dimensionnelles","les proportions du modèle","la technique imposée","les consignes de couleur"],
+    criteria:["(longueur ≤ 40 cm, largeur ≤ 20 cm)","à ± 20% près","telle que décrite dans la marche à suivre","selon le code couleur fourni"] },
 ];
 
 const DOMAINS = [...new Set(ACM_CATALOG.map(e => e.domain))];
+
+const SUBJECT_VERB_COMPAT = {
+  "L'élève":      null,
+  "L'objet":      new Set(["Découper","Assembler","Tracer","Mesurer","Plier","Peindre",
+                            "Modeler","Tisser","Reproduire","Concevoir","Vérifier",
+                            "Présenter","Indiquer","Respecter","Comporter","Contenir","Inclure"]),
+  "Le croquis":   new Set(["Schématiser","Concevoir","Reproduire","Légender","Vérifier",
+                            "Corriger","Présenter","Contenir","Comporter","Inclure","Indiquer","Respecter"]),
+  "La surface":   new Set(["Peindre","Tracer","Vérifier","Présenter","Respecter","Contenir"]),
+  "Les éléments": new Set(["Découper","Assembler","Plier","Coller","Tisser","Reproduire",
+                            "Vérifier","Corriger","Présenter","Respecter"]),
+};
 
 // ═══════════════════════════════════════
 // ANALYSE NLP
@@ -1010,15 +1042,16 @@ function toggleHelp() {
 
 let rState = {
   step: 1,            // 1=verbe, 2=condition, 3=critères
-  subject: "L'élève",
+  subject: "L'élève", // valeur par défaut
   domainFilter: null,
+  quantity: null,
   selectedVerb: null,
   selectedCondition: null,
   selectedCriteria: new Set(),
 };
 
 function openReformulation() {
-  rState = { step:1, subject:"L'élève", domainFilter:null, selectedVerb:null, selectedCondition:null, selectedCriteria:new Set() };
+  rState = { step:1, subject:"L'élève", domainFilter:null, quantity:null, selectedVerb:null, selectedCondition:null, selectedCriteria:new Set() };
   renderModalStep();
   document.getElementById('modalOverlay').classList.add('open');
 }
@@ -1082,25 +1115,56 @@ function renderModalStep() {
   let contentHtml = '';
 
   if (rState.step === 1) {
-    // Sujet
-    contentHtml += `
-      <div class="subject-row">
-        <label>Sujet</label>
-        <input type="text" id="subjectInput" value="${escHtml(rState.subject)}"
-          oninput="rState.subject=this.value;updatePreview()"
-          placeholder="L'élève, L'étudiant·e…">
-      </div>`;
+    // Sélecteur de sujet
+    const SUBJECT_OPTIONS = [
+      { value: "L’élève",               label: "L’élève",                    hint: "action directe de l’élève" },
+      { value: "L’objet",               label: "L’objet / La production",    hint: "caractéristique du produit fini" },
+      { value: "Le croquis",            label: "Le croquis",                 hint: "qualité ou contenu du croquis" },
+      { value: "La surface",            label: "La surface / La structure",  hint: "état d’une partie de l’objet" },
+      { value: "Les éléments",          label: "Les éléments (pluriel)",     hint: "assemblages, couches, pièces…" },
+      { value: "__custom__",            label: "Autre…",                     hint: "texte libre" },
+    ];
+    contentHtml += `<p class="section-label" style="margin-bottom:8px">Sujet de l’indicateur</p>`;
+    contentHtml += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">`;
+    SUBJECT_OPTIONS.forEach((opt, idx) => {
+      const isCustom = opt.value === '__custom__';
+      const sel = isCustom
+        ? !SUBJECT_OPTIONS.slice(0,-1).some(o => o.value === rState.subject)
+        : rState.subject === opt.value;
+      contentHtml += `
+        <button class="option-btn ${sel ? 'selected' : ''}"
+          style="flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px"
+          onclick="setSubjectByIndex(${idx})">
+          <span style="font-weight:600;font-size:.88rem">${opt.label}</span>
+          <span style="font-size:.72rem;color:var(--ink-soft)">${opt.hint}</span>
+        </button>`;
+    });
+    contentHtml += `</div>`;
+    // Si "Autre" sélectionné → champ texte libre
+    const isCustomSubject = !SUBJECT_OPTIONS.slice(0,-1).some(o => o.value === rState.subject);
+    if (isCustomSubject) {
+      contentHtml += `
+        <div class="subject-row" style="margin-bottom:16px">
+          <label>Précise le sujet</label>
+          <input type="text" id="subjectInput" value="${escHtml(rState.subject === '__custom__' ? '' : rState.subject)}"
+            oninput="rState.subject=this.value||'__custom__';updatePreview()"
+            placeholder="ex. La tirelire, Le masque, Les plis…">
+        </div>`;
+    }
     // Filtre domaine
     contentHtml += `<p class="section-label">Domaine ACM</p><div class="chip-row">`;
     contentHtml += `<span class="chip ${!rState.domainFilter?'active':''}" onclick="setDomain(null)">Tous</span>`;
-    DOMAINS.forEach(d => {
-      contentHtml += `<span class="chip ${rState.domainFilter===d?'active':''}" onclick="setDomain('${d}')">${d}</span>`;
+    DOMAINS.forEach((d, di) => {
+      contentHtml += `<span class="chip ${rState.domainFilter===d?'active':''}" onclick="setDomainByIndex(${di})">${d}</span>`;
     });
     contentHtml += `</div>`;
     // Verbes
     contentHtml += `<p class="section-label" style="margin-top:4px">Verbe d'action observable</p>`;
     contentHtml += `<div class="verb-grid">`;
-    const filtered = rState.domainFilter ? ACM_CATALOG.filter(e=>e.domain===rState.domainFilter) : ACM_CATALOG;
+    const compat = SUBJECT_VERB_COMPAT[rState.subject];
+    const filtered = ACM_CATALOG
+      .filter(e => rState.domainFilter ? e.domain === rState.domainFilter : true)
+      .filter(e => !compat || compat.has(e.verb));
     filtered.forEach((entry, idx) => {
       const sel = rState.selectedVerb && rState.selectedVerb.verb === entry.verb;
       contentHtml += `
@@ -1113,7 +1177,32 @@ function renderModalStep() {
   }
 
   else if (rState.step === 2) {
-    contentHtml += `<p class="section-label">Condition d'application — <em>${rState.selectedVerb.verb}</em></p>`;
+    const quickQty = QUICK_QTY; // référence au tableau global
+    const isCustomQty = rState.quantity && !quickQty.includes(rState.quantity) && rState.quantity !== '__custom__';
+    contentHtml += `
+      <div style="margin-bottom:20px;padding:14px;background:var(--paper-warm);border-radius:10px">
+        <p class="section-label" style="margin-bottom:6px">
+          Quantité
+          <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink-soft);font-size:.75rem;margin-left:6px">
+            optionnel — précise le nombre attendu
+          </span>
+        </p>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">
+          ${quickQty.map((q,qi) => `<button class="chip ${rState.quantity===q?'active':''}"
+            onclick="setQuantityByIndex(${qi})">${q}</button>`).join('')}
+          <button class="chip ${isCustomQty||rState.quantity==='__custom__'?'active':''}"
+            onclick="setQuantity('__custom__')">Autre…</button>
+          ${rState.quantity ? `<button onclick="setQuantity(null)"
+            style="background:none;border:none;color:var(--ink-soft);font-size:.78rem;cursor:pointer;padding:4px 6px">
+            ✕ Effacer</button>` : ''}
+        </div>
+        ${(rState.quantity === '__custom__' || isCustomQty) ? `
+        <input type="text" value="${escHtml(isCustomQty ? rState.quantity : '')}"
+          oninput="rState.quantity=this.value||'__custom__';updatePreview()"
+          placeholder="ex. 5, au moins 4, entre 2 et 4…"
+          style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);font-family:'DM Sans',sans-serif;font-size:.9rem;outline:none">` : ''}
+      </div>`;
+    contentHtml += `<p class="section-label" style="margin-bottom:8px">Condition d'application — <em>${rState.selectedVerb.verb}</em></p>`;
     rState.selectedVerb.conditions.forEach((cond, i) => {
       const sel = rState.selectedCondition === cond;
       contentHtml += `
@@ -1149,18 +1238,65 @@ function renderModalStep() {
   body.innerHTML = stepperHtml + ctxHtml + contentHtml;
 }
 
+function setDomainByIndex(idx) {
+  setDomain(DOMAINS[idx]);
+}
+
 function setDomain(d) {
   rState.domainFilter = d;
   if (rState.selectedVerb && d && rState.selectedVerb.domain !== d) {
-    rState.selectedVerb = null; rState.selectedCondition = null; rState.selectedCriteria = new Set();
+    rState.selectedVerb = null; rState.selectedCondition = null;
+    rState.selectedCriteria = new Set(); rState.quantity = null;
   }
   renderModalStep();
+}
+
+// Tableau global des valeurs de sujets (évite les apostrophes dans onclick)
+const SUBJECT_VALUES = [
+  "L’élève",
+  "L’objet",
+  "Le croquis",
+  "La surface",
+  "Les éléments",
+  "__custom__"
+];
+
+function setSubjectByIndex(idx) {
+  const val = SUBJECT_VALUES[idx];
+  rState.subject = val;
+  // Reset verbe si incompatible avec nouveau sujet
+  if (rState.selectedVerb) {
+    const compat = SUBJECT_VERB_COMPAT[val];
+    if (compat && !compat.has(rState.selectedVerb.verb)) {
+      rState.selectedVerb = null;
+      rState.selectedCondition = null;
+      rState.selectedCriteria = new Set();
+      rState.quantity = null;
+    }
+  }
+  renderModalStep();
+}
+
+function setSubject(val) {
+  setSubjectByIndex(SUBJECT_VALUES.indexOf(val) !== -1 ? SUBJECT_VALUES.indexOf(val) : 5);
 }
 
 function selectVerb(idx) {
   rState.selectedVerb = ACM_CATALOG[idx];
   rState.selectedCondition = null;
   rState.selectedCriteria = new Set();
+  rState.quantity = null;
+  renderModalStep();
+}
+
+const QUICK_QTY = ["2","3","4","au moins 2","au moins 3","moins de 3","aucun"];
+
+function setQuantityByIndex(idx) {
+  setQuantity(QUICK_QTY[idx]);
+}
+
+function setQuantity(val) {
+  rState.quantity = (val === null) ? null : val;
   renderModalStep();
 }
 
@@ -1176,8 +1312,114 @@ function toggleCriteria(idx) {
 }
 
 function buildIndicator() {
-  if (!rState.selectedVerb) return `${rState.subject} …`;
-  let parts = [`${rState.subject} ${rState.selectedVerb.verb.toLowerCase()}`];
+  // Résoudre le sujet affiché
+  const displaySubject = (rState.subject === '__custom__' || rState.subject === '')
+    ? '…'
+    : rState.subject;
+
+  if (!rState.selectedVerb) return `${displaySubject} …`;
+
+  // Tables de conjugaison et accords
+  const verb = rState.selectedVerb.verb;
+
+  // Participes passés avec accord féminin/pluriel
+  const PP = {
+    "découper":   {m:"découpé",   f:"découpée",   mp:"découpés",   fp:"découpées"},
+    "assembler":  {m:"assemblé",  f:"assemblée",  mp:"assemblés",  fp:"assemblées"},
+    "tracer":     {m:"tracé",     f:"tracée",     mp:"tracés",     fp:"tracées"},
+    "mesurer":    {m:"mesuré",    f:"mesurée",    mp:"mesurés",    fp:"mesurées"},
+    "plier":      {m:"plié",      f:"pliée",      mp:"pliés",      fp:"pliées"},
+    "peindre":    {m:"peint",     f:"peinte",     mp:"peints",     fp:"peintes"},
+    "modeler":    {m:"modelé",    f:"modelée",    mp:"modelés",    fp:"modelées"},
+    "tisser":     {m:"tissé",     f:"tissée",     mp:"tissés",     fp:"tissées"},
+    "schématiser":{m:"schématisé",f:"schématisée",mp:"schématisés",fp:"schématisées"},
+    "concevoir":  {m:"conçu",     f:"conçue",     mp:"conçus",     fp:"conçues"},
+    "reproduire": {m:"reproduit", f:"reproduite", mp:"reproduits", fp:"reproduites"},
+    "identifier": {m:"identifié", f:"identifiée", mp:"identifiés", fp:"identifiées"},
+    "comparer":   {m:"comparé",   f:"comparée",   mp:"comparés",   fp:"comparées"},
+    "tester":     {m:"testé",     f:"testée",     mp:"testés",     fp:"testées"},
+    "planifier":  {m:"planifié",  f:"planifiée",  mp:"planifiés",  fp:"planifiées"},
+    "sélectionner":{m:"sélectionné",f:"sélectionnée",mp:"sélectionnés",fp:"sélectionnées"},
+    "vérifier":   {m:"vérifié",   f:"vérifiée",   mp:"vérifiés",   fp:"vérifiées"},
+    "corriger":   {m:"corrigé",   f:"corrigée",   mp:"corrigés",   fp:"corrigées"},
+    "présenter":  {m:"présenté",  f:"présentée",  mp:"présentés",  fp:"présentées"},
+    "légender":   {m:"légendé",   f:"légendée",   mp:"légendés",   fp:"légendées"},
+    "réaliser":   {m:"réalisé",   f:"réalisée",   mp:"réalisés",   fp:"réalisées"},
+    "construire": {m:"construit", f:"construite", mp:"construits", fp:"construites"},
+    "coller":     {m:"collé",     f:"collée",     mp:"collés",     fp:"collées"},
+    "couvrir":    {m:"couvert",   f:"couverte",   mp:"couverts",   fp:"couvertes"},
+    "respecter":  {m:"respecté",  f:"respectée",  mp:"respectés",  fp:"respectées"},
+    "créer":      {m:"créé",      f:"créée",      mp:"créés",      fp:"créées"},
+    "découper":   {m:"découpé",   f:"découpée",   mp:"découpés",   fp:"découpées"},
+    "colorier":   {m:"colorié",   f:"coloriée",   mp:"coloriés",   fp:"coloriées"},
+    "décorer":    {m:"décoré",    f:"décorée",    mp:"décorés",    fp:"décorées"},
+    "contenir":   {m:"contenu",   f:"contenue",   mp:"contenus",   fp:"contenues"},
+    "comporter":  {m:"comporté",  f:"comportée",  mp:"comportés",  fp:"comportées"},
+    "inclure":    {m:"inclus",    f:"incluse",    mp:"inclus",     fp:"incluses"},
+    "présenter":  {m:"présenté",  f:"présentée",  mp:"présentés",  fp:"présentées"},
+    "indiquer":   {m:"indiqué",   f:"indiquée",   mp:"indiqués",   fp:"indiquées"},
+    "respecter":  {m:"respecté",  f:"respectée",  mp:"respectés",  fp:"respectées"},
+  };
+
+  // Verbe conjugué présent pour L'élève
+  const CONJUGATED = {
+    "découper":"découpe","assembler":"assemble","tracer":"trace","mesurer":"mesure",
+    "plier":"plie","peindre":"peint","modeler":"modèle","tisser":"tisse",
+    "schématiser":"schématise","concevoir":"conçoit","reproduire":"reproduit",
+    "identifier":"identifie","comparer":"compare","tester":"teste",
+    "planifier":"planifie","sélectionner":"sélectionne","vérifier":"vérifie",
+    "corriger":"corrige","présenter":"présente","légender":"légender",
+    "réaliser":"réalise","construire":"construit","coller":"colle",
+    "couvrir":"couvre","respecter":"respecte","créer":"crée",
+    "décorer":"décore","colorier":"colorie","lisser":"lisse",
+    "percer":"perce","scotcher":"scotche","sculpter":"sculpte",
+    "contenir":"contient","comporter":"comporte","inclure":"inclut",
+    "présenter":"présente","indiquer":"indique","respecter":"respecte",
+  };
+
+  // Genre grammatical des sujets prédéfinis
+  const SUBJECT_GENDER = {
+    "L'élève":      {genre:"m", plural:false},
+    "L'objet":      {genre:"m", plural:false},
+    "Le croquis":   {genre:"m", plural:false},
+    "La surface":   {genre:"f", plural:false},
+    "Les éléments": {genre:"m", plural:true},
+  };
+
+  // Verbes d'état/description : conjugaison directe (pas de passif)
+  const STATE_VERBS = new Set(["contenir","comporter","inclure","présenter","indiquer","respecter"]);
+
+  const sg = SUBJECT_GENDER[rState.subject];
+  const nonAgentSubjects = ["L'objet","Le croquis","La surface","Les éléments"];
+  let verbForm;
+
+  if (rState.subject === "L'élève") {
+    verbForm = CONJUGATED[verb.toLowerCase()] || verb.toLowerCase();
+  } else if (nonAgentSubjects.includes(rState.subject) && sg) {
+    if (STATE_VERBS.has(verb.toLowerCase())) {
+      // Verbe d'état : conjugaison directe (présent)
+      // Pluriel pour "Les éléments"
+      const base = CONJUGATED[verb.toLowerCase()] || verb.toLowerCase();
+      verbForm = sg.plural ? base + 'nt' : base;
+      // Corrections irrégulières
+      if (verb.toLowerCase() === 'contenir') verbForm = sg.plural ? 'contiennent' : 'contient';
+      if (verb.toLowerCase() === 'inclure')  verbForm = sg.plural ? 'incluent'    : 'inclut';
+    } else {
+      const ppTable = PP[verb.toLowerCase()];
+      if (ppTable) {
+        const key = sg.plural ? (sg.genre==='f' ? 'fp' : 'mp') : (sg.genre==='f' ? 'f' : 'm');
+        const aux = sg.plural ? "sont" : "est";
+        verbForm = `${aux} ${ppTable[key]}`;
+      } else {
+        verbForm = verb.toLowerCase();
+      }
+    }
+  } else {
+    verbForm = verb.toLowerCase();
+  }
+
+  const qty = (rState.quantity && rState.quantity !== '__custom__') ? rState.quantity : null;
+  let parts = [qty ? `${displaySubject} ${verbForm} ${qty}` : `${displaySubject} ${verbForm}`];
   if (rState.selectedCondition) parts.push(rState.selectedCondition);
   const crits = [...rState.selectedCriteria].map(i => rState.selectedVerb.criteria[i]);
   if (crits.length > 0) parts.push(crits.join(' et '));
