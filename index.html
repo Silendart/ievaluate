@@ -548,6 +548,30 @@ const HELP_MESSAGES = {
   "tenir":"Définir un test : ex. tenir 10 s sans tomber/glisser.",
 };
 
+// ═══════════════════════════════════════
+// RÈGLES SUPPLÉMENTAIRES
+// ═══════════════════════════════════════
+
+// Règle 1 — Patterns quantifiés (formulations chiffrées)
+const QUANTIFIED_RE = /\b(au moins|au maximum|maximum|minimum|min\.|max\.|moins de|plus de|zéro|aucun|aucune|\d+\s*sur\s*\d+|entre\s+\d|\d+\s*(mm|cm|m|s|secondes?|minutes?|fois|couches?|objets?|pièces?|croquis|fanions?|stylos?|défauts?|hachures?|résidus?|plis?|points?|cm²|g|kg)|±\s*\d|à\s*±|\d+\s*%)/i;
+
+// Règle 2 — Structure "est capable de" + verbe
+const CAPABLE_RE = /est capable de\s+([a-zàâäéèêëîïôùûüç]+)/gi;
+
+// Règle 3 — Adjectifs de qualité technique
+const QUALITY_ADJECTIVES = new Set([
+  "net","nette","nets","nettes","droit","droite","droits","droites",
+  "lisse","lisses","fluide","fluides","rigide","rigides",
+  "symétrique","symétriques","continu","continue","continus","continues",
+  "homogène","homogènes","stable","stables","régulier","régulière",
+  "réguliers","régulières","uniforme","uniformes","plat","plate","plats","plates"
+]);
+
+// Détecte si un chiffre/quantificateur est présent dans la phrase
+function hasQuantifier(text) {
+  return QUANTIFIED_RE.test(text);
+}
+
 const ACM_CATALOG = [
   { verb:"Découper", domain:"Fabrication",
     conditions:["au ciseau","au cutter sur tapis","suivant un gabarit tracé","en suivant le tracé au crayon"],
@@ -632,20 +656,56 @@ function analyzeText(text) {
   const foundSub = [...new Set(words.filter(w => SUBJECTIVE_WORDS.has(w)))];
   const foundCon = [...new Set(words.filter(w => OBSERVABLE_VERBS.has(w)))];
 
-  // Score de clarté
+  // Règle 1 — Formulation chiffrée
+  const isQuantified = hasQuantifier(text);
+
+  // Règle 2 — "Est capable de" + analyse du verbe qui suit
+  let capableVerdict = null; // null | 'ok' | 'warn' | 'bad'
+  const capableMatches = [...text.matchAll(CAPABLE_RE)];
+  if (capableMatches.length > 0) {
+    const verbsAfter = capableMatches.map(m => m[1].toLowerCase());
+    const hasObs  = verbsAfter.some(v => OBSERVABLE_VERBS.has(v));
+    const hasSub  = verbsAfter.some(v => SUBJECTIVE_WORDS.has(v));
+    if (hasObs && !hasSub)       capableVerdict = 'ok';
+    else if (hasSub)             capableVerdict = 'bad';
+    else                         capableVerdict = 'warn';
+  }
+
+  // Règle 3 — Adjectifs de qualité technique ± quantificateur
+  const qualityWords = [...new Set(words.filter(w => QUALITY_ADJECTIVES.has(w)))];
+  const qualityWithNum   = qualityWords.length > 0 && isQuantified;
+  const qualityWithoutNum = qualityWords.length > 0 && !isQuantified;
+
+  // Score de clarté (bonus pour formulation chiffrée)
   let score;
-  if (foundCon.length > 0 && foundSub.length === 0)       score = 1.0;
-  else if (foundCon.length === 0 && foundSub.length > 0)  score = 0.25;
-  else if (foundCon.length === 0 && foundSub.length === 0) score = 0.5;
-  else {
+  if (isQuantified && foundSub.length === 0) {
+    score = 1.0; // formulation chiffrée sans subjectif = excellent
+  } else if (foundCon.length > 0 && foundSub.length === 0) {
+    score = isQuantified ? 1.0 : 0.9;
+  } else if (foundCon.length === 0 && foundSub.length > 0) {
+    score = 0.25;
+  } else if (foundCon.length === 0 && foundSub.length === 0) {
+    score = isQuantified ? 0.85 : 0.5;
+  } else {
     const k = 1.0;
     score = (foundCon.length + k) / (foundCon.length + 0.6 * foundSub.length + 2 * k);
+    if (isQuantified) score = Math.min(1.0, score + 0.1);
   }
 
   const suggestions = {};
   foundSub.forEach(w => { if (HELP_MESSAGES[w]) suggestions[w] = HELP_MESSAGES[w]; });
 
-  return { subjectifs: foundSub, concrets: foundCon, suggestions, clarityScore: score };
+  return {
+    subjectifs: foundSub,
+    concrets: foundCon,
+    suggestions,
+    clarityScore: score,
+    isQuantified,
+    capableVerdict,
+    qualityWords,
+    qualityWithNum,
+    qualityWithoutNum
+  };
 }
 
 const BULLET_RE = /^[\-•–\*]\s+/;
@@ -662,17 +722,49 @@ function analyzeChecklist(text) {
     const subMatches = words.filter(w => SUBJECTIVE_WORDS.has(w));
     const conMatches = words.filter(w => OBSERVABLE_VERBS.has(w));
     const tips = [...new Set(subMatches.flatMap(w => HELP_MESSAGES[w] ? [HELP_MESSAGES[w]] : []))];
+
+    // Règle 1 — quantifié ?
+    const itemQuantified = hasQuantifier(raw);
+
+    // Règle 2 — capable de ?
+    const capMatches = [...raw.matchAll(CAPABLE_RE)];
+    let capableTip = null;
+    if (capMatches.length > 0) {
+      const vAfter = capMatches.map(m => m[1].toLowerCase());
+      const obs = vAfter.some(v => OBSERVABLE_VERBS.has(v));
+      const sub = vAfter.some(v => SUBJECTIVE_WORDS.has(v));
+      if (!obs && !sub) capableTip = "Vérifie que le verbe après 'est capable de' soit un verbe d'action concret et mesurable (ex. découper, assembler, tracer…).";
+      if (sub) capableTip = "Le verbe après 'est capable de' est flou. Remplace-le par un verbe d'action observable (ex. découper, assembler, tracer…).";
+    }
+    if (capableTip) tips.push(capableTip);
+
+    // Règle 3 — adjectifs de qualité
+    const qualWords = words.filter(w => QUALITY_ADJECTIVES.has(w));
+    if (qualWords.length > 0 && !itemQuantified) {
+      tips.push("Adjectif de qualité détecté ('" + qualWords[0] + "') — ajoute une tolérance mesurable (ex. ± 2 mm, 3 sur 4, moins de 3 défauts…).");
+    }
+
     if (lower.includes('tenir') || lower.includes('peut tenir'))
       tips.push("Définir un test : ex. tenir 10 s sans tomber/glisser.");
     if (lower.includes('résist'))
       tips.push("Préciser le test de résistance : durée/conditions (secousses, transport).");
 
     const hasFunctional = lower.includes('tenir') || lower.includes('résist');
+
     let status;
-    if (conMatches.length > 0 && subMatches.length === 0 && !hasFunctional) status = 'ok';
-    else if (conMatches.length > 0 || hasFunctional) status = 'warn';
-    else if (subMatches.length > 0) status = 'bad';
-    else status = 'warn';
+    if (itemQuantified && subMatches.length === 0) {
+      status = 'ok'; // formulation chiffrée sans subjectif = excellent
+    } else if (conMatches.length > 0 && subMatches.length === 0 && !hasFunctional && qualWords.length === 0) {
+      status = 'ok';
+    } else if (conMatches.length > 0 && subMatches.length === 0 && qualWords.length > 0 && itemQuantified) {
+      status = 'ok'; // qualité + chiffre = ok
+    } else if (conMatches.length > 0 || hasFunctional || (qualWords.length > 0 && itemQuantified)) {
+      status = 'warn';
+    } else if (subMatches.length > 0) {
+      status = 'bad';
+    } else {
+      status = 'warn';
+    }
 
     return { raw, status, tips };
   });
@@ -712,12 +804,17 @@ function renderResults(global, items) {
   // Badge feedback
   const badge = document.getElementById('feedbackBadge');
   let icon, msg, cls;
-  if (concrets.length > 0 && subjectifs.length === 0) {
+  const { isQuantified: iq, qualityWithNum: qwn } = global;
+  if (iq && global.subjectifs.length === 0) {
+    icon='🎯'; msg="Excellent — indicateur chiffré, objectif et mesurable !"; cls='ok';
+  } else if (concrets.length > 0 && subjectifs.length === 0) {
     icon='✅'; msg="Élevé — ton indicateur est précis et observable !"; cls='ok';
   } else if (concrets.length > 0 && subjectifs.length > 0) {
     icon='⚠️'; msg="Moyen — verbe correct, mais formulation encore floue."; cls='warn';
   } else if (concrets.length === 0 && subjectifs.length > 0) {
     icon='❌'; msg="Faible — utilise un verbe d'action mesurable et évite les termes subjectifs."; cls='bad';
+  } else if (iq) {
+    icon='🎯'; msg="Formulation chiffrée détectée — bon indicateur quantifié !"; cls='ok';
   } else {
     icon=''; msg="Aucun mot-clé détecté. Essaie d'être plus précis."; cls='warn';
   }
@@ -734,7 +831,48 @@ function renderResults(global, items) {
     pct >= 75 ? 'var(--green)' : pct >= 50 ? 'var(--orange)' : 'var(--red)';
 
   // Tags
+  const { isQuantified, capableVerdict, qualityWords, qualityWithNum, qualityWithoutNum } = global;
   let tagsHtml = '';
+
+  // Règle 1 — formulation chiffrée
+  if (isQuantified) {
+    tagsHtml += `<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:var(--green-dim);border-radius:8px;margin-bottom:10px">
+      <span>🎯</span>
+      <span style="font-size:.85rem;color:var(--green);font-weight:500">Formulation chiffrée détectée — critère objectif et mesurable. Excellent indicateur !</span>
+    </div>`;
+  }
+
+  // Règle 2 — capable de
+  if (capableVerdict === 'warn') {
+    tagsHtml += `<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:var(--orange-dim);border-radius:8px;margin-bottom:10px">
+      <span>⚠️</span>
+      <span style="font-size:.85rem;color:var(--orange)">Structure <em>"est capable de"</em> détectée — vérifie que le verbe qui suit est un verbe d'action observable (ex. découper, assembler, tracer…).</span>
+    </div>`;
+  } else if (capableVerdict === 'bad') {
+    tagsHtml += `<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:var(--red-dim);border-radius:8px;margin-bottom:10px">
+      <span>❌</span>
+      <span style="font-size:.85rem;color:var(--red)">Structure <em>"est capable de"</em> suivie d'un verbe flou — remplace par un verbe d'action concret.</span>
+    </div>`;
+  } else if (capableVerdict === 'ok') {
+    tagsHtml += `<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:var(--green-dim);border-radius:8px;margin-bottom:10px">
+      <span>✅</span>
+      <span style="font-size:.85rem;color:var(--green)">Structure <em>"est capable de"</em> correcte — le verbe d'action est observable.</span>
+    </div>`;
+  }
+
+  // Règle 3 — adjectifs de qualité
+  if (qualityWithNum) {
+    tagsHtml += `<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:var(--green-dim);border-radius:8px;margin-bottom:10px">
+      <span>✅</span>
+      <span style="font-size:.85rem;color:var(--green)">Adjectif de qualité accompagné d'une mesure — bien formulé !</span>
+    </div>`;
+  } else if (qualityWithoutNum) {
+    tagsHtml += `<div style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:var(--orange-dim);border-radius:8px;margin-bottom:10px">
+      <span>⚠️</span>
+      <span style="font-size:.85rem;color:var(--orange)">Adjectif de qualité détecté (<em>${qualityWords.join(', ')}</em>) sans mesure — ajoute une tolérance (ex. ± 2 mm, 3 sur 4, moins de 3 défauts…).</span>
+    </div>`;
+  }
+
   if (subjectifs.length > 0) {
     tagsHtml += `<p style="font-size:.8rem;color:var(--red);font-weight:500;margin-bottom:5px">🔴 Termes subjectifs détectés</p>`;
     tagsHtml += `<div class="tags">${subjectifs.map(w=>`<span class="tag tag-red">${w}</span>`).join('')}</div>`;
