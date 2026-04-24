@@ -469,13 +469,34 @@ const SUBJECTIVE_WORDS = new Set([
   "magnifique","magnifiques","harmonieux","harmonieuse","harmonieuses","correctement",
   "créatif","créative","créatifs","créatives","faible","faibles","régulier","régulière",
   "réguliers","régulières","approprié","appropriée","appropriés","appropriées",
-  "efficace","efficaces","logique","cohérent","cohérente","cohérents","cohérentes",
+  "efficace","efficaces","logique",
   "durable","durables","propre","propres","soigné","soignée","soignés","soignées",
-  "faisable","faisables","complexe","complexes","autonome","autonomes",
+  "faisable","faisables","complexe","complexes",
   "personnel","personnelle","personnels","personnelles","esthétique","esthétiques",
   "maîtriser","maîtrisé","maîtrise","comprendre","compris","comprend",
   "faire","fait","réussir","adapter","adapté","adaptée"
 ]);
+
+// Subjectifs "contextuels ACM" : légitimes dans certains contextes,
+// mais nécessitent quand même une précision → ⚠️ avec conseil spécifique
+const ACM_CONTEXTUAL = {
+  "reconnaissable":  "Préciser les critères de reconnaissance (ex. 3 élèves sur 4 identifient l'objet, ou éléments caractéristiques listés).",
+  "reconnaissables": "Préciser les critères de reconnaissance (ex. 3 élèves sur 4 identifient l'objet, ou éléments caractéristiques listés).",
+  "cohérent":        "Expliciter avec quoi (consigne, croquis initial, contraintes données) et comment on le vérifie.",
+  "cohérente":       "Expliciter avec quoi (consigne, croquis initial, contraintes données) et comment on le vérifie.",
+  "cohérents":       "Expliciter avec quoi (consigne, croquis initial, contraintes données) et comment on le vérifie.",
+  "cohérentes":      "Expliciter avec quoi (consigne, croquis initial, contraintes données) et comment on le vérifie.",
+  "varié":           "Préciser ce qui constitue la variété (ex. au moins 3 techniques différentes, 2 matériaux distincts).",
+  "variée":          "Préciser ce qui constitue la variété (ex. au moins 3 techniques différentes, 2 matériaux distincts).",
+  "variés":          "Préciser ce qui constitue la variété (ex. au moins 3 techniques différentes, 2 matériaux distincts).",
+  "variées":         "Préciser ce qui constitue la variété (ex. au moins 3 techniques différentes, 2 matériaux distincts).",
+  "autonome":        "Définir le niveau d'autonomie attendu (ex. sans demander d'aide, en utilisant la fiche de référence seul·e).",
+  "autonomes":       "Définir le niveau d'autonomie attendu (ex. sans demander d'aide, en utilisant la fiche de référence seul·e).",
+  "solide":          "Définir un test de solidité observable (ex. tient sans déformation sous 500 g, résiste à 3 manipulations).",
+  "solides":         "Définir un test de solidité observable (ex. tient sans déformation sous 500 g, résiste à 3 manipulations).",
+  "personnels":      "Préciser ce qui rend le travail personnel (ex. motif choisi librement, au moins 1 élément non fourni par l'enseignant·e).",
+  "personnelles":    "Préciser ce qui rend le travail personnel (ex. motif choisi librement, au moins 1 élément non fourni par l'enseignant·e).",
+};
 
 const OBSERVABLE_VERBS = new Set([
   "concevoir","conçu","conçoit","construire","construit","corriger","corrigé","corrige",
@@ -497,7 +518,25 @@ const OBSERVABLE_VERBS = new Set([
   "trier","trié","trie","noter","noté","note","compter","compté","compte",
   "vérifier","vérifié","vérifie","comparer","comparé","compare","annoter","annoté","annote",
   "monter","monté","monte","démonter","démonté","démonte","numéroter","numéroté",
-  "tenir","tenu","tient"
+  "tenir","tenu","tient","tiennent",
+  "finir","fini","finit","terminer","terminé","termine",
+  "chablonner","chablonné","chablonne",
+  "couvrir","couvert","couverte","couvertes","couvre","couvrent",
+  "dépasser","dépassé","dépasse","dépassent",
+  "respecter","respecté","respecte","respectent",
+  "relier","relié","relie","relient",
+  "choisir","choisi","choisit","choisissent",
+  "justifier","justifié","justifie","justifient",
+  "créer","créé","crée","créent",
+  "alourdir","alourdi","alourdit",
+  "garantir","garanti","garantit",
+  "éliminer","éliminé","élimine","éliminent",
+  "réussir","réussi","réussit",
+  "poser","posé","pose","posent",
+  "nomme","nommer","nommé",
+  "réalisée","réalisées","effectuée","effectuées","produite","produites",
+  "assemblée","assemblées","découpée","découpées","collée","collées",
+  "peinte","peintes","tracée","tracées","pliée","pliées"
 ]);
 
 const HELP_MESSAGES = {
@@ -562,9 +601,9 @@ const CAPABLE_RE = /est capable de\s+([a-zàâäéèêëîïôùûüç]+)/gi;
 const QUALITY_ADJECTIVES = new Set([
   "net","nette","nets","nettes","droit","droite","droits","droites",
   "lisse","lisses","fluide","fluides","rigide","rigides",
-  "symétrique","symétriques","continu","continue","continus","continues",
-  "homogène","homogènes","stable","stables","régulier","régulière",
-  "réguliers","régulières","uniforme","uniformes","plat","plate","plats","plates"
+  "symétrique","symétriques",
+  "homogène","homogènes","stable","stables",
+  "uniforme","uniformes","plat","plate","plats","plates"
 ]);
 
 // Détecte si un chiffre/quantificateur est présent dans la phrase
@@ -655,6 +694,8 @@ function analyzeText(text) {
 
   const foundSub = [...new Set(words.filter(w => SUBJECTIVE_WORDS.has(w)))];
   const foundCon = [...new Set(words.filter(w => OBSERVABLE_VERBS.has(w)))];
+  // Subjectifs contextuels ACM (⚠️ plutôt que ❌)
+  const foundContextual = [...new Set(words.filter(w => ACM_CONTEXTUAL[w]))];
 
   // Règle 1 — Formulation chiffrée
   const isQuantified = hasQuantifier(text);
@@ -676,19 +717,29 @@ function analyzeText(text) {
   const qualityWithNum   = qualityWords.length > 0 && isQuantified;
   const qualityWithoutNum = qualityWords.length > 0 && !isQuantified;
 
+  // Subjectifs "mineurs" neutralisés si chiffré OU si parenthèse/deux-points explicatifs suivent
+  const MINOR_SUBJ = new Set(["correctement","précis","précise","bien","propre","propres","soigné","soignée","adapté","adaptée"]);
+  // Correction A : "correctement (…)" ou "correctement :" → neutralisé même sans chiffre
+  const hasExplicitSpec = /correctement\s*[(:]/i.test(text) || /bonne\s+(longueur|taille|distance|épaisseur|proportion)/i.test(text);
+  const MINOR_SUBJ_EXT = hasExplicitSpec
+    ? new Set([...MINOR_SUBJ, "correctement","bonne","bon"])
+    : MINOR_SUBJ;
+  const majorSub = foundSub.filter(w => !MINOR_SUBJ_EXT.has(w));
+  const effectiveSub = (isQuantified || hasExplicitSpec) ? majorSub : foundSub;
+
   // Score de clarté (bonus pour formulation chiffrée)
   let score;
-  if (isQuantified && foundSub.length === 0) {
-    score = 1.0; // formulation chiffrée sans subjectif = excellent
-  } else if (foundCon.length > 0 && foundSub.length === 0) {
+  if (isQuantified && effectiveSub.length === 0) {
+    score = 1.0;
+  } else if (foundCon.length > 0 && effectiveSub.length === 0) {
     score = isQuantified ? 1.0 : 0.9;
-  } else if (foundCon.length === 0 && foundSub.length > 0) {
+  } else if (foundCon.length === 0 && effectiveSub.length > 0) {
     score = 0.25;
-  } else if (foundCon.length === 0 && foundSub.length === 0) {
+  } else if (foundCon.length === 0 && effectiveSub.length === 0) {
     score = isQuantified ? 0.85 : 0.5;
   } else {
     const k = 1.0;
-    score = (foundCon.length + k) / (foundCon.length + 0.6 * foundSub.length + 2 * k);
+    score = (foundCon.length + k) / (foundCon.length + 0.6 * effectiveSub.length + 2 * k);
     if (isQuantified) score = Math.min(1.0, score + 0.1);
   }
 
@@ -696,8 +747,10 @@ function analyzeText(text) {
   foundSub.forEach(w => { if (HELP_MESSAGES[w]) suggestions[w] = HELP_MESSAGES[w]; });
 
   return {
-    subjectifs: foundSub,
+    subjectifs: effectiveSub,   // subjectifs effectifs (mineurs neutralisés si chiffré)
+    subjectifsRaw: foundSub,    // tous les subjectifs bruts
     concrets: foundCon,
+    contextual: foundContextual, // subjectifs contextuels ACM
     suggestions,
     clarityScore: score,
     isQuantified,
@@ -722,6 +775,9 @@ function analyzeChecklist(text) {
     const subMatches = words.filter(w => SUBJECTIVE_WORDS.has(w));
     const conMatches = words.filter(w => OBSERVABLE_VERBS.has(w));
     const tips = [...new Set(subMatches.flatMap(w => HELP_MESSAGES[w] ? [HELP_MESSAGES[w]] : []))];
+    // Contextuels ACM → conseil spécifique
+    const ctxMatches = words.filter(w => ACM_CONTEXTUAL[w]);
+    ctxMatches.forEach(w => { if (ACM_CONTEXTUAL[w]) tips.push('🟡 ' + ACM_CONTEXTUAL[w]); });
 
     // Règle 1 — quantifié ?
     const itemQuantified = hasQuantifier(raw);
@@ -751,16 +807,22 @@ function analyzeChecklist(text) {
 
     const hasFunctional = lower.includes('tenir') || lower.includes('résist');
 
+    // Subjectifs mineurs neutralisés si chiffré ou parenthèse explicative
+    const MINOR_S = new Set(["correctement","précis","précise","bien","propre","propres","soigné","soignée","adapté","adaptée"]);
+    const itemHasSpec = /correctement\s*[(:]/i.test(raw) || /bonne\s+(longueur|taille|distance|épaisseur|proportion)/i.test(raw);
+    const MINOR_S_EXT = itemHasSpec ? new Set([...MINOR_S,"correctement","bonne","bon"]) : MINOR_S;
+    const effectiveSubs = (itemQuantified || itemHasSpec) ? subMatches.filter(w => !MINOR_S_EXT.has(w)) : subMatches;
+
     let status;
-    if (itemQuantified && subMatches.length === 0) {
-      status = 'ok'; // formulation chiffrée sans subjectif = excellent
-    } else if (conMatches.length > 0 && subMatches.length === 0 && !hasFunctional && qualWords.length === 0) {
+    if (itemQuantified && effectiveSubs.length === 0) {
       status = 'ok';
-    } else if (conMatches.length > 0 && subMatches.length === 0 && qualWords.length > 0 && itemQuantified) {
-      status = 'ok'; // qualité + chiffre = ok
+    } else if (conMatches.length > 0 && effectiveSubs.length === 0 && !hasFunctional && qualWords.length === 0) {
+      status = 'ok';
+    } else if (conMatches.length > 0 && effectiveSubs.length === 0 && qualWords.length > 0 && itemQuantified) {
+      status = 'ok';
     } else if (conMatches.length > 0 || hasFunctional || (qualWords.length > 0 && itemQuantified)) {
       status = 'warn';
-    } else if (subMatches.length > 0) {
+    } else if (effectiveSubs.length > 0) {
       status = 'bad';
     } else {
       status = 'warn';
@@ -831,7 +893,7 @@ function renderResults(global, items) {
     pct >= 75 ? 'var(--green)' : pct >= 50 ? 'var(--orange)' : 'var(--red)';
 
   // Tags
-  const { isQuantified, capableVerdict, qualityWords, qualityWithNum, qualityWithoutNum } = global;
+  const { isQuantified, capableVerdict, qualityWords, qualityWithNum, qualityWithoutNum, contextual } = global;
   let tagsHtml = '';
 
   // Règle 1 — formulation chiffrée
@@ -880,6 +942,18 @@ function renderResults(global, items) {
   if (concrets.length > 0) {
     tagsHtml += `<p style="font-size:.8rem;color:var(--green);font-weight:500;margin:10px 0 5px">🟢 Verbes observables détectés</p>`;
     tagsHtml += `<div class="tags">${concrets.map(w=>`<span class="tag tag-green">${w}</span>`).join('')}</div>`;
+  }
+  // Contextuels ACM
+  if (contextual && contextual.length > 0) {
+    tagsHtml += `<p style="font-size:.8rem;color:var(--orange);font-weight:500;margin:10px 0 5px">🟡 Termes à préciser (contexte ACM)</p>`;
+    tagsHtml += `<div class="tags">${contextual.map(w=>`<span class="tag" style="background:#fff3cd;color:#856404">${w}</span>`).join('')}</div>`;
+    tagsHtml += `<div style="margin-top:8px">`;
+    contextual.forEach(w => {
+      if (ACM_CONTEXTUAL[w]) {
+        tagsHtml += `<div class="tip" style="margin-top:5px"><span class="tip-icon">💡</span><span style="font-size:.82rem;color:var(--ink-soft)">${ACM_CONTEXTUAL[w]}</span></div>`;
+      }
+    });
+    tagsHtml += `</div>`;
   }
   document.getElementById('tagsSection').innerHTML = tagsHtml;
 
