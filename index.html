@@ -900,15 +900,15 @@ function renderResults(global, items) {
   let icon, msg, cls;
   const { isQuantified: iq, qualityWithNum: qwn } = global;
   if (iq && global.subjectifs.length === 0) {
-    icon='🎯'; msg="Excellent — indicateur chiffré, objectif et mesurable !"; cls='ok';
+    icon='🎯'; msg="Excellent : indicateur chiffré, objectif et mesurable !"; cls='ok';
   } else if (concrets.length > 0 && subjectifs.length === 0) {
-    icon='✅'; msg="Élevé — ton indicateur est précis et observable !"; cls='ok';
+    icon='✅'; msg="Élevé : ton indicateur est précis et observable !"; cls='ok';
   } else if (concrets.length > 0 && subjectifs.length > 0) {
-    icon='⚠️'; msg="Moyen — verbe correct, mais formulation encore floue."; cls='warn';
+    icon='⚠️'; msg="Moyen : verbe correct, mais formulation encore floue."; cls='warn';
   } else if (concrets.length === 0 && subjectifs.length > 0) {
-    icon='❌'; msg="Faible — utilise un verbe d'action mesurable et évite les termes subjectifs."; cls='bad';
+    icon='❌'; msg="Faible : utilise un verbe d'action mesurable et évite les termes subjectifs."; cls='bad';
   } else if (iq) {
-    icon='🎯'; msg="Formulation chiffrée détectée — bon indicateur quantifié !"; cls='ok';
+    icon='🎯'; msg="Formulation chiffrée détectée : bon indicateur quantifié !"; cls='ok';
   } else {
     icon=''; msg="Aucun mot-clé détecté. Essaie d'être plus précis."; cls='warn';
   }
